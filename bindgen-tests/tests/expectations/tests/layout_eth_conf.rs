@@ -73,7 +73,7 @@ where
         debug_assert!(bit_width <= 64);
         debug_assert!(bit_offset / 8 < self.storage.as_ref().len());
         debug_assert!(
-            (bit_offset + (bit_width as usize)) / 8 <= self.storage.as_ref().len(),
+            (bit_offset + (bit_width as usize) + 7) / 8 <= self.storage.as_ref().len(),
         );
         if bit_width == 0 {
             return 0;
@@ -106,7 +106,8 @@ where
         debug_assert!(bit_width <= 64);
         debug_assert!(bit_offset / 8 < core::mem::size_of::<Storage>());
         debug_assert!(
-            (bit_offset + (bit_width as usize)) / 8 <= core::mem::size_of::<Storage>(),
+            (bit_offset + (bit_width as usize) + 7) / 8
+                <= core::mem::size_of::<Storage>(),
         );
         if bit_width == 0 {
             return 0;
@@ -141,7 +142,7 @@ where
         debug_assert!(bit_width <= 64);
         debug_assert!(bit_offset / 8 < self.storage.as_ref().len());
         debug_assert!(
-            (bit_offset + (bit_width as usize)) / 8 <= self.storage.as_ref().len(),
+            (bit_offset + (bit_width as usize) + 7) / 8 <= self.storage.as_ref().len(),
         );
         if bit_width == 0 {
             return;
@@ -181,7 +182,8 @@ where
         debug_assert!(bit_width <= 64);
         debug_assert!(bit_offset / 8 < core::mem::size_of::<Storage>());
         debug_assert!(
-            (bit_offset + (bit_width as usize)) / 8 <= core::mem::size_of::<Storage>(),
+            (bit_offset + (bit_width as usize) + 7) / 8
+                <= core::mem::size_of::<Storage>(),
         );
         if bit_width == 0 {
             return;
@@ -226,7 +228,7 @@ impl<const N: usize> __BindgenBitfieldUnit<[u8; N]> {
     pub const fn get_const<const BIT_OFFSET: usize, const BIT_WIDTH: u8>(&self) -> u64 {
         debug_assert!(BIT_WIDTH <= 64);
         debug_assert!(BIT_OFFSET / 8 < N);
-        debug_assert!((BIT_OFFSET + (BIT_WIDTH as usize)) / 8 <= N);
+        debug_assert!((BIT_OFFSET + (BIT_WIDTH as usize) + 7) / 8 <= N);
         if BIT_WIDTH == 0 {
             return 0;
         }
@@ -251,7 +253,9 @@ impl<const N: usize> __BindgenBitfieldUnit<[u8; N]> {
                 }
             }
             val >>= bit_shift;
-            val &= (1usize << BIT_WIDTH) - 1;
+            if (BIT_WIDTH as u32) < usize::BITS {
+                val &= (1usize << BIT_WIDTH) - 1;
+            }
             if cfg!(target_endian = "big") {
                 val = val.reverse_bits() >> (usize::BITS as usize - BIT_WIDTH as usize);
             }
@@ -289,7 +293,7 @@ impl<const N: usize> __BindgenBitfieldUnit<[u8; N]> {
     pub fn set_const<const BIT_OFFSET: usize, const BIT_WIDTH: u8>(&mut self, val: u64) {
         debug_assert!(BIT_WIDTH <= 64);
         debug_assert!(BIT_OFFSET / 8 < N);
-        debug_assert!((BIT_OFFSET + (BIT_WIDTH as usize)) / 8 <= N);
+        debug_assert!((BIT_OFFSET + (BIT_WIDTH as usize) + 7) / 8 <= N);
         if BIT_WIDTH == 0 {
             return;
         }
@@ -298,12 +302,18 @@ impl<const N: usize> __BindgenBitfieldUnit<[u8; N]> {
         let bytes_needed = (BIT_WIDTH as usize + bit_shift + 7) / 8;
         if BIT_WIDTH as usize + bit_shift <= usize::BITS as usize {
             let mut val = val as usize;
-            val &= (1usize << BIT_WIDTH) - 1;
+            if (BIT_WIDTH as u32) < usize::BITS {
+                val &= (1usize << BIT_WIDTH) - 1;
+            }
             if cfg!(target_endian = "big") {
                 val = val.reverse_bits() >> (usize::BITS as usize - BIT_WIDTH as usize);
             }
             val <<= bit_shift;
-            let field_mask = ((1usize << BIT_WIDTH) - 1) << bit_shift;
+            let field_mask = if BIT_WIDTH as usize + bit_shift >= usize::BITS as usize {
+                !0usize << bit_shift
+            } else {
+                ((1usize << BIT_WIDTH) - 1) << bit_shift
+            };
             let mut i = 0;
             while i < bytes_needed {
                 let byte_val = (val >> (i * 8)) as u8;
@@ -356,7 +366,7 @@ impl<const N: usize> __BindgenBitfieldUnit<[u8; N]> {
     ) -> u64 {
         debug_assert!(BIT_WIDTH <= 64);
         debug_assert!(BIT_OFFSET / 8 < N);
-        debug_assert!((BIT_OFFSET + (BIT_WIDTH as usize)) / 8 <= N);
+        debug_assert!((BIT_OFFSET + (BIT_WIDTH as usize) + 7) / 8 <= N);
         if BIT_WIDTH == 0 {
             return 0;
         }
@@ -382,7 +392,9 @@ impl<const N: usize> __BindgenBitfieldUnit<[u8; N]> {
                 }
             }
             val >>= bit_shift;
-            val &= (1usize << BIT_WIDTH) - 1;
+            if (BIT_WIDTH as u32) < usize::BITS {
+                val &= (1usize << BIT_WIDTH) - 1;
+            }
             if cfg!(target_endian = "big") {
                 val = val.reverse_bits() >> (usize::BITS as usize - BIT_WIDTH as usize);
             }
@@ -423,7 +435,7 @@ impl<const N: usize> __BindgenBitfieldUnit<[u8; N]> {
     ) {
         debug_assert!(BIT_WIDTH <= 64);
         debug_assert!(BIT_OFFSET / 8 < N);
-        debug_assert!((BIT_OFFSET + (BIT_WIDTH as usize)) / 8 <= N);
+        debug_assert!((BIT_OFFSET + (BIT_WIDTH as usize) + 7) / 8 <= N);
         if BIT_WIDTH == 0 {
             return;
         }
@@ -433,12 +445,18 @@ impl<const N: usize> __BindgenBitfieldUnit<[u8; N]> {
         let storage_ptr = this.cast::<[u8; N]>().cast::<u8>();
         if BIT_WIDTH as usize + bit_shift <= usize::BITS as usize {
             let mut val = val as usize;
-            val &= (1usize << BIT_WIDTH) - 1;
+            if (BIT_WIDTH as u32) < usize::BITS {
+                val &= (1usize << BIT_WIDTH) - 1;
+            }
             if cfg!(target_endian = "big") {
                 val = val.reverse_bits() >> (usize::BITS as usize - BIT_WIDTH as usize);
             }
             val <<= bit_shift;
-            let field_mask = ((1usize << BIT_WIDTH) - 1) << bit_shift;
+            let field_mask = if BIT_WIDTH as usize + bit_shift >= usize::BITS as usize {
+                !0usize << bit_shift
+            } else {
+                ((1usize << BIT_WIDTH) - 1) << bit_shift
+            };
             let mut i = 0;
             while i < bytes_needed {
                 let byte_val = (val >> (i * 8)) as u8;
@@ -579,12 +597,14 @@ impl Default for rte_eth_rxmode {
 }
 impl rte_eth_rxmode {
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn header_split(&self) -> u16 {
         unsafe {
             ::std::mem::transmute(self._bitfield_1.get_const::<0usize, 1u8>() as u16)
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn set_header_split(&mut self, val: u16) {
         unsafe {
             let val: u16 = ::std::mem::transmute(val);
@@ -592,6 +612,7 @@ impl rte_eth_rxmode {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn header_split_raw(this: *const Self) -> u16 {
         unsafe {
             ::std::mem::transmute(
@@ -605,6 +626,7 @@ impl rte_eth_rxmode {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn set_header_split_raw(this: *mut Self, val: u16) {
         unsafe {
             let val: u16 = ::std::mem::transmute(val);
@@ -617,12 +639,14 @@ impl rte_eth_rxmode {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn hw_ip_checksum(&self) -> u16 {
         unsafe {
             ::std::mem::transmute(self._bitfield_1.get_const::<1usize, 1u8>() as u16)
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn set_hw_ip_checksum(&mut self, val: u16) {
         unsafe {
             let val: u16 = ::std::mem::transmute(val);
@@ -630,6 +654,7 @@ impl rte_eth_rxmode {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn hw_ip_checksum_raw(this: *const Self) -> u16 {
         unsafe {
             ::std::mem::transmute(
@@ -643,6 +668,7 @@ impl rte_eth_rxmode {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn set_hw_ip_checksum_raw(this: *mut Self, val: u16) {
         unsafe {
             let val: u16 = ::std::mem::transmute(val);
@@ -655,12 +681,14 @@ impl rte_eth_rxmode {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn hw_vlan_filter(&self) -> u16 {
         unsafe {
             ::std::mem::transmute(self._bitfield_1.get_const::<2usize, 1u8>() as u16)
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn set_hw_vlan_filter(&mut self, val: u16) {
         unsafe {
             let val: u16 = ::std::mem::transmute(val);
@@ -668,6 +696,7 @@ impl rte_eth_rxmode {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn hw_vlan_filter_raw(this: *const Self) -> u16 {
         unsafe {
             ::std::mem::transmute(
@@ -681,6 +710,7 @@ impl rte_eth_rxmode {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn set_hw_vlan_filter_raw(this: *mut Self, val: u16) {
         unsafe {
             let val: u16 = ::std::mem::transmute(val);
@@ -693,12 +723,14 @@ impl rte_eth_rxmode {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn hw_vlan_strip(&self) -> u16 {
         unsafe {
             ::std::mem::transmute(self._bitfield_1.get_const::<3usize, 1u8>() as u16)
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn set_hw_vlan_strip(&mut self, val: u16) {
         unsafe {
             let val: u16 = ::std::mem::transmute(val);
@@ -706,6 +738,7 @@ impl rte_eth_rxmode {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn hw_vlan_strip_raw(this: *const Self) -> u16 {
         unsafe {
             ::std::mem::transmute(
@@ -719,6 +752,7 @@ impl rte_eth_rxmode {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn set_hw_vlan_strip_raw(this: *mut Self, val: u16) {
         unsafe {
             let val: u16 = ::std::mem::transmute(val);
@@ -731,12 +765,14 @@ impl rte_eth_rxmode {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn hw_vlan_extend(&self) -> u16 {
         unsafe {
             ::std::mem::transmute(self._bitfield_1.get_const::<4usize, 1u8>() as u16)
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn set_hw_vlan_extend(&mut self, val: u16) {
         unsafe {
             let val: u16 = ::std::mem::transmute(val);
@@ -744,6 +780,7 @@ impl rte_eth_rxmode {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn hw_vlan_extend_raw(this: *const Self) -> u16 {
         unsafe {
             ::std::mem::transmute(
@@ -757,6 +794,7 @@ impl rte_eth_rxmode {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn set_hw_vlan_extend_raw(this: *mut Self, val: u16) {
         unsafe {
             let val: u16 = ::std::mem::transmute(val);
@@ -769,12 +807,14 @@ impl rte_eth_rxmode {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn jumbo_frame(&self) -> u16 {
         unsafe {
             ::std::mem::transmute(self._bitfield_1.get_const::<5usize, 1u8>() as u16)
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn set_jumbo_frame(&mut self, val: u16) {
         unsafe {
             let val: u16 = ::std::mem::transmute(val);
@@ -782,6 +822,7 @@ impl rte_eth_rxmode {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn jumbo_frame_raw(this: *const Self) -> u16 {
         unsafe {
             ::std::mem::transmute(
@@ -795,6 +836,7 @@ impl rte_eth_rxmode {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn set_jumbo_frame_raw(this: *mut Self, val: u16) {
         unsafe {
             let val: u16 = ::std::mem::transmute(val);
@@ -807,12 +849,14 @@ impl rte_eth_rxmode {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn hw_strip_crc(&self) -> u16 {
         unsafe {
             ::std::mem::transmute(self._bitfield_1.get_const::<6usize, 1u8>() as u16)
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn set_hw_strip_crc(&mut self, val: u16) {
         unsafe {
             let val: u16 = ::std::mem::transmute(val);
@@ -820,6 +864,7 @@ impl rte_eth_rxmode {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn hw_strip_crc_raw(this: *const Self) -> u16 {
         unsafe {
             ::std::mem::transmute(
@@ -833,6 +878,7 @@ impl rte_eth_rxmode {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn set_hw_strip_crc_raw(this: *mut Self, val: u16) {
         unsafe {
             let val: u16 = ::std::mem::transmute(val);
@@ -845,12 +891,14 @@ impl rte_eth_rxmode {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn enable_scatter(&self) -> u16 {
         unsafe {
             ::std::mem::transmute(self._bitfield_1.get_const::<7usize, 1u8>() as u16)
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn set_enable_scatter(&mut self, val: u16) {
         unsafe {
             let val: u16 = ::std::mem::transmute(val);
@@ -858,6 +906,7 @@ impl rte_eth_rxmode {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn enable_scatter_raw(this: *const Self) -> u16 {
         unsafe {
             ::std::mem::transmute(
@@ -871,6 +920,7 @@ impl rte_eth_rxmode {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn set_enable_scatter_raw(this: *mut Self, val: u16) {
         unsafe {
             let val: u16 = ::std::mem::transmute(val);
@@ -883,12 +933,14 @@ impl rte_eth_rxmode {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn enable_lro(&self) -> u16 {
         unsafe {
             ::std::mem::transmute(self._bitfield_1.get_const::<8usize, 1u8>() as u16)
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn set_enable_lro(&mut self, val: u16) {
         unsafe {
             let val: u16 = ::std::mem::transmute(val);
@@ -896,6 +948,7 @@ impl rte_eth_rxmode {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn enable_lro_raw(this: *const Self) -> u16 {
         unsafe {
             ::std::mem::transmute(
@@ -909,6 +962,7 @@ impl rte_eth_rxmode {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn set_enable_lro_raw(this: *mut Self, val: u16) {
         unsafe {
             let val: u16 = ::std::mem::transmute(val);
@@ -921,6 +975,7 @@ impl rte_eth_rxmode {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn new_bitfield_1(
         header_split: u16,
         hw_ip_checksum: u16,
@@ -1062,12 +1117,14 @@ impl Default for rte_eth_txmode {
 }
 impl rte_eth_txmode {
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn hw_vlan_reject_tagged(&self) -> u8 {
         unsafe {
             ::std::mem::transmute(self._bitfield_1.get_const::<0usize, 1u8>() as u8)
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn set_hw_vlan_reject_tagged(&mut self, val: u8) {
         unsafe {
             let val: u8 = ::std::mem::transmute(val);
@@ -1075,6 +1132,7 @@ impl rte_eth_txmode {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn hw_vlan_reject_tagged_raw(this: *const Self) -> u8 {
         unsafe {
             ::std::mem::transmute(
@@ -1088,6 +1146,7 @@ impl rte_eth_txmode {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn set_hw_vlan_reject_tagged_raw(this: *mut Self, val: u8) {
         unsafe {
             let val: u8 = ::std::mem::transmute(val);
@@ -1100,12 +1159,14 @@ impl rte_eth_txmode {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn hw_vlan_reject_untagged(&self) -> u8 {
         unsafe {
             ::std::mem::transmute(self._bitfield_1.get_const::<1usize, 1u8>() as u8)
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn set_hw_vlan_reject_untagged(&mut self, val: u8) {
         unsafe {
             let val: u8 = ::std::mem::transmute(val);
@@ -1113,6 +1174,7 @@ impl rte_eth_txmode {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn hw_vlan_reject_untagged_raw(this: *const Self) -> u8 {
         unsafe {
             ::std::mem::transmute(
@@ -1126,6 +1188,7 @@ impl rte_eth_txmode {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn set_hw_vlan_reject_untagged_raw(this: *mut Self, val: u8) {
         unsafe {
             let val: u8 = ::std::mem::transmute(val);
@@ -1138,12 +1201,14 @@ impl rte_eth_txmode {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn hw_vlan_insert_pvid(&self) -> u8 {
         unsafe {
             ::std::mem::transmute(self._bitfield_1.get_const::<2usize, 1u8>() as u8)
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn set_hw_vlan_insert_pvid(&mut self, val: u8) {
         unsafe {
             let val: u8 = ::std::mem::transmute(val);
@@ -1151,6 +1216,7 @@ impl rte_eth_txmode {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn hw_vlan_insert_pvid_raw(this: *const Self) -> u8 {
         unsafe {
             ::std::mem::transmute(
@@ -1164,6 +1230,7 @@ impl rte_eth_txmode {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn set_hw_vlan_insert_pvid_raw(this: *mut Self, val: u8) {
         unsafe {
             let val: u8 = ::std::mem::transmute(val);
@@ -1176,6 +1243,7 @@ impl rte_eth_txmode {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn new_bitfield_1(
         hw_vlan_reject_tagged: u8,
         hw_vlan_reject_untagged: u8,

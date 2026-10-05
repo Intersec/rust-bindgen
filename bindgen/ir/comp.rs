@@ -1,7 +1,5 @@
 //! Compound types (unions and structs) in our intermediate representation.
 
-use itertools::Itertools;
-
 use super::analysis::Sizedness;
 use super::annotations::Annotations;
 use super::context::{BindgenContext, FunctionId, ItemId, TypeId, VarId};
@@ -11,6 +9,7 @@ use super::layout::Layout;
 use super::template::TemplateParameters;
 use super::traversal::{EdgeKind, Trace, Tracer};
 use super::ty::RUST_DERIVE_IN_ARRAY_LIMIT;
+use crate::callbacks::FieldInfo;
 use crate::clang;
 use crate::codegen::struct_layout::align_to;
 use crate::ir::derive::CanDeriveCopy;
@@ -142,6 +141,7 @@ pub(crate) trait FieldMethods {
     fn ty(&self) -> TypeId;
 
     /// Get the comment for this field.
+    #[allow(dead_code)] // Used by trait implementations in Field wrapper types
     fn comment(&self) -> Option<&str>;
 
     /// If this is a bitfield, how many bits does it need?
@@ -165,6 +165,8 @@ pub(crate) trait FieldMethods {
 pub(crate) struct BitfieldUnit {
     nth: usize,
     layout: Layout,
+    /// The offset of this unit within the struct, in bits, if known.
+    offset: Option<usize>,
     bitfields: Vec<Bitfield>,
 }
 
@@ -179,6 +181,11 @@ impl BitfieldUnit {
     /// Get the layout within which these bitfields reside.
     pub(crate) fn layout(&self) -> Layout {
         self.layout
+    }
+
+    /// Get the offset of this unit within the struct, in bits, if known.
+    pub(crate) fn offset(&self) -> Option<usize> {
+        self.offset
     }
 
     /// Get the bitfields within this unit.
@@ -491,25 +498,25 @@ where
 
     loop {
         // While we have plain old data members, just keep adding them to our
-        // resulting fields. We introduce a scope here so that we can use
-        // `raw_fields` again after the `by_ref` iterator adaptor is dropped.
+        // resulting fields.
+        while let Some(raw_field) =
+            raw_fields.next_if(|f| f.bitfield_width().is_none())
         {
-            let non_bitfields = raw_fields
-                .by_ref()
-                .peeking_take_while(|f| f.bitfield_width().is_none())
-                .map(|f| Field::DataMember(f.0));
-            fields.extend(non_bitfields);
+            fields.push(Field::DataMember(raw_field.0));
         }
+
+        let mut bitfields = vec![];
 
         // Now gather all the consecutive bitfields. Only consecutive bitfields
         // may potentially share a bitfield allocation unit with each other in
         // the Itanium C++ ABI.
-        let mut bitfields = raw_fields
-            .by_ref()
-            .peeking_take_while(|f| f.bitfield_width().is_some())
-            .peekable();
+        while let Some(raw_field) =
+            raw_fields.next_if(|f| f.bitfield_width().is_some())
+        {
+            bitfields.push(raw_field);
+        }
 
-        if bitfields.peek().is_none() {
+        if bitfields.is_empty() {
             break;
         }
 
@@ -560,6 +567,7 @@ where
         fields: &mut E,
         bitfield_unit_count: &mut usize,
         unit_size_in_bits: usize,
+        offset: Option<usize>,
         bitfields: Vec<Bitfield>,
     ) where
         E: Extend<Field>,
@@ -571,13 +579,14 @@ where
         fields.extend(Some(Field::Bitfields(BitfieldUnit {
             nth: *bitfield_unit_count,
             layout,
+            offset,
             bitfields,
         })));
     }
 
     // The offset we're in inside the struct, if we know it (we might not know it in presence of
     // templates).
-    let mut start_offset_in_struct = 0;
+    let mut known_start_offset = None;
     let mut max_align = 0;
     let mut unit_size_in_bits = 0;
     let mut bitfields_in_unit = vec![];
@@ -591,7 +600,7 @@ where
         let bitfield_size = bitfield_layout.size;
 
         if unit_size_in_bits == 0 {
-            start_offset_in_struct = bitfield.offset().unwrap_or(0);
+            known_start_offset = bitfield.offset();
         }
 
         let mut offset_in_struct =
@@ -599,6 +608,7 @@ where
 
         // A zero-width field serves as alignment / padding.
         if !packed &&
+            bitfield.offset().is_none() &&
             offset_in_struct != 0 &&
             (bitfield_width == 0 ||
                 (offset_in_struct & (bitfield_align * 8 - 1)) +
@@ -621,12 +631,10 @@ where
         // bitfields over their types size cause weird allocation size behavior from clang.
         // Therefore, all bitfields needed to be kept around in order to check for this
         // and make the struct opaque in this case
-        bitfields_in_unit.push(Bitfield::new(
-            offset_in_struct - start_offset_in_struct,
-            bitfield,
-        ));
-        unit_size_in_bits =
-            offset_in_struct - start_offset_in_struct + bitfield_width;
+        let bitfield_offset =
+            offset_in_struct - known_start_offset.unwrap_or(0);
+        bitfields_in_unit.push(Bitfield::new(bitfield_offset, bitfield));
+        unit_size_in_bits = bitfield_offset + bitfield_width;
     }
 
     if unit_size_in_bits != 0 {
@@ -635,6 +643,7 @@ where
             fields,
             bitfield_unit_count,
             unit_size_in_bits,
+            known_start_offset,
             bitfields_in_unit,
         );
     }
@@ -702,7 +711,12 @@ impl CompFields {
         }
     }
 
-    fn deanonymize_fields(&mut self, ctx: &BindgenContext, methods: &[Method]) {
+    fn assign_field_names(
+        &mut self,
+        ctx: &BindgenContext,
+        canonical_type_name: &str,
+        methods: &[Method],
+    ) {
         let fields = match *self {
             CompFields::After { ref mut fields, .. } => fields,
             // Nothing to do here.
@@ -711,6 +725,46 @@ impl CompFields {
                 panic!("Not yet computed bitfield units.");
             }
         };
+
+        for field in fields.iter_mut() {
+            match field {
+                Field::DataMember(FieldData { name, ty, .. }) => {
+                    if let Some(original_name) = name.as_deref() {
+                        let maybe_rename = ctx.options().last_callback(|cb| {
+                            cb.field_name(FieldInfo {
+                                type_name: canonical_type_name,
+                                field_name: original_name,
+                                field_type_name: ctx.resolve_type(*ty).name(),
+                            })
+                        });
+
+                        if let Some(new_name) = maybe_rename {
+                            *name = Some(new_name);
+                        }
+                    }
+                }
+                Field::Bitfields(BitfieldUnit { bitfields, .. }) => {
+                    for bitfield in bitfields.iter_mut() {
+                        if let Some(original_name) = bitfield.name() {
+                            let maybe_rename =
+                                ctx.options().last_callback(|cb| {
+                                    cb.field_name(FieldInfo {
+                                        type_name: canonical_type_name,
+                                        field_name: original_name,
+                                        field_type_name: ctx
+                                            .resolve_type(bitfield.ty())
+                                            .name(),
+                                    })
+                                });
+
+                            if let Some(new_name) = maybe_rename {
+                                bitfield.data.name = Some(new_name);
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
         fn has_method(
             methods: &[Method],
@@ -899,6 +953,20 @@ impl FieldMethods for FieldData {
 
     fn offset(&self) -> Option<usize> {
         self.offset
+    }
+}
+
+impl FieldData {
+    /// Get this field's documentation comment, if it has any, already preprocessed
+    /// and with the right indentation. Returns `None` if comment generation is disabled.
+    pub(crate) fn doc_comment(&self, ctx: &BindgenContext) -> Option<String> {
+        if !ctx.options().generate_comments {
+            return None;
+        }
+
+        self.comment
+            .as_ref()
+            .map(|comment| ctx.options().process_comment(comment))
     }
 }
 
@@ -1685,8 +1753,13 @@ impl CompInfo {
     }
 
     /// Assign for each anonymous field a generated name.
-    pub(crate) fn deanonymize_fields(&mut self, ctx: &BindgenContext) {
-        self.fields.deanonymize_fields(ctx, &self.methods);
+    pub(crate) fn assign_field_names(
+        &mut self,
+        ctx: &BindgenContext,
+        canonical_type_name: &str,
+    ) {
+        self.fields
+            .assign_field_names(ctx, canonical_type_name, &self.methods);
     }
 
     /// Returns whether the current union can be represented as a Rust `union`
@@ -1735,7 +1808,9 @@ impl CompInfo {
             return (false, false);
         }
 
-        if layout.is_some_and(|l| l.size == 0) {
+        if layout.is_some_and(|l| l.size == 0) &&
+            union_style != NonCopyUnionStyle::ManuallyDrop
+        {
             return (false, false);
         }
 

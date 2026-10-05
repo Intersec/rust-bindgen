@@ -4,7 +4,6 @@ lints.workspace = true
 name = "bindgen-integration"
 description = "A package to test various bindgen features"
 version = "0.1.0"
-authors = ["Emilio Cobos Álvarez <emilio@crisal.io>"]
 publish = false
 build = "build.rs"
 rust-version.workspace = true
@@ -19,5 +18,5 @@ static = ["bindgen/static"]
 runtime = ["bindgen/runtime"]
 
 __testing_only_extra_assertions = ["bindgen/__testing_only_extra_assertions"]
-__testing_only_libclang_9 = ["bindgen/__testing_only_libclang_9"]
 __testing_only_libclang_16 = ["bindgen/__testing_only_libclang_16"]
+__testing_only_libclang_20 = ["bindgen/__testing_only_libclang_20"]

@@ -18,12 +18,14 @@ const _: () = {
 };
 impl C {
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn b1(&self) -> ::std::os::raw::c_uint {
         unsafe {
             ::std::mem::transmute(self._bitfield_1.get_const::<0usize, 1u8>() as u32)
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn set_b1(&mut self, val: ::std::os::raw::c_uint) {
         unsafe {
             let val: u32 = ::std::mem::transmute(val);
@@ -31,6 +33,7 @@ impl C {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn b1_raw(this: *const Self) -> ::std::os::raw::c_uint {
         unsafe {
             ::std::mem::transmute(
@@ -44,6 +47,7 @@ impl C {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn set_b1_raw(this: *mut Self, val: ::std::os::raw::c_uint) {
         unsafe {
             let val: u32 = ::std::mem::transmute(val);
@@ -56,12 +60,14 @@ impl C {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn b2(&self) -> ::std::os::raw::c_uint {
         unsafe {
             ::std::mem::transmute(self._bitfield_1.get_const::<1usize, 1u8>() as u32)
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn set_b2(&mut self, val: ::std::os::raw::c_uint) {
         unsafe {
             let val: u32 = ::std::mem::transmute(val);
@@ -69,6 +75,7 @@ impl C {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn b2_raw(this: *const Self) -> ::std::os::raw::c_uint {
         unsafe {
             ::std::mem::transmute(
@@ -82,6 +89,7 @@ impl C {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn set_b2_raw(this: *mut Self, val: ::std::os::raw::c_uint) {
         unsafe {
             let val: u32 = ::std::mem::transmute(val);
@@ -94,6 +102,7 @@ impl C {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn new_bitfield_1(
         b1: ::std::os::raw::c_uint,
         b2: ::std::os::raw::c_uint,

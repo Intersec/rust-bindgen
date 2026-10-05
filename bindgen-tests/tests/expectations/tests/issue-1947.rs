@@ -73,7 +73,7 @@ where
         debug_assert!(bit_width <= 64);
         debug_assert!(bit_offset / 8 < self.storage.as_ref().len());
         debug_assert!(
-            (bit_offset + (bit_width as usize)) / 8 <= self.storage.as_ref().len(),
+            (bit_offset + (bit_width as usize) + 7) / 8 <= self.storage.as_ref().len(),
         );
         if bit_width == 0 {
             return 0;
@@ -106,7 +106,8 @@ where
         debug_assert!(bit_width <= 64);
         debug_assert!(bit_offset / 8 < core::mem::size_of::<Storage>());
         debug_assert!(
-            (bit_offset + (bit_width as usize)) / 8 <= core::mem::size_of::<Storage>(),
+            (bit_offset + (bit_width as usize) + 7) / 8
+                <= core::mem::size_of::<Storage>(),
         );
         if bit_width == 0 {
             return 0;
@@ -141,7 +142,7 @@ where
         debug_assert!(bit_width <= 64);
         debug_assert!(bit_offset / 8 < self.storage.as_ref().len());
         debug_assert!(
-            (bit_offset + (bit_width as usize)) / 8 <= self.storage.as_ref().len(),
+            (bit_offset + (bit_width as usize) + 7) / 8 <= self.storage.as_ref().len(),
         );
         if bit_width == 0 {
             return;
@@ -181,7 +182,8 @@ where
         debug_assert!(bit_width <= 64);
         debug_assert!(bit_offset / 8 < core::mem::size_of::<Storage>());
         debug_assert!(
-            (bit_offset + (bit_width as usize)) / 8 <= core::mem::size_of::<Storage>(),
+            (bit_offset + (bit_width as usize) + 7) / 8
+                <= core::mem::size_of::<Storage>(),
         );
         if bit_width == 0 {
             return;
@@ -226,7 +228,7 @@ impl<const N: usize> __BindgenBitfieldUnit<[u8; N]> {
     pub const fn get_const<const BIT_OFFSET: usize, const BIT_WIDTH: u8>(&self) -> u64 {
         debug_assert!(BIT_WIDTH <= 64);
         debug_assert!(BIT_OFFSET / 8 < N);
-        debug_assert!((BIT_OFFSET + (BIT_WIDTH as usize)) / 8 <= N);
+        debug_assert!((BIT_OFFSET + (BIT_WIDTH as usize) + 7) / 8 <= N);
         if BIT_WIDTH == 0 {
             return 0;
         }
@@ -251,7 +253,9 @@ impl<const N: usize> __BindgenBitfieldUnit<[u8; N]> {
                 }
             }
             val >>= bit_shift;
-            val &= (1usize << BIT_WIDTH) - 1;
+            if (BIT_WIDTH as u32) < usize::BITS {
+                val &= (1usize << BIT_WIDTH) - 1;
+            }
             if cfg!(target_endian = "big") {
                 val = val.reverse_bits() >> (usize::BITS as usize - BIT_WIDTH as usize);
             }
@@ -289,7 +293,7 @@ impl<const N: usize> __BindgenBitfieldUnit<[u8; N]> {
     pub fn set_const<const BIT_OFFSET: usize, const BIT_WIDTH: u8>(&mut self, val: u64) {
         debug_assert!(BIT_WIDTH <= 64);
         debug_assert!(BIT_OFFSET / 8 < N);
-        debug_assert!((BIT_OFFSET + (BIT_WIDTH as usize)) / 8 <= N);
+        debug_assert!((BIT_OFFSET + (BIT_WIDTH as usize) + 7) / 8 <= N);
         if BIT_WIDTH == 0 {
             return;
         }
@@ -298,12 +302,18 @@ impl<const N: usize> __BindgenBitfieldUnit<[u8; N]> {
         let bytes_needed = (BIT_WIDTH as usize + bit_shift + 7) / 8;
         if BIT_WIDTH as usize + bit_shift <= usize::BITS as usize {
             let mut val = val as usize;
-            val &= (1usize << BIT_WIDTH) - 1;
+            if (BIT_WIDTH as u32) < usize::BITS {
+                val &= (1usize << BIT_WIDTH) - 1;
+            }
             if cfg!(target_endian = "big") {
                 val = val.reverse_bits() >> (usize::BITS as usize - BIT_WIDTH as usize);
             }
             val <<= bit_shift;
-            let field_mask = ((1usize << BIT_WIDTH) - 1) << bit_shift;
+            let field_mask = if BIT_WIDTH as usize + bit_shift >= usize::BITS as usize {
+                !0usize << bit_shift
+            } else {
+                ((1usize << BIT_WIDTH) - 1) << bit_shift
+            };
             let mut i = 0;
             while i < bytes_needed {
                 let byte_val = (val >> (i * 8)) as u8;
@@ -356,7 +366,7 @@ impl<const N: usize> __BindgenBitfieldUnit<[u8; N]> {
     ) -> u64 {
         debug_assert!(BIT_WIDTH <= 64);
         debug_assert!(BIT_OFFSET / 8 < N);
-        debug_assert!((BIT_OFFSET + (BIT_WIDTH as usize)) / 8 <= N);
+        debug_assert!((BIT_OFFSET + (BIT_WIDTH as usize) + 7) / 8 <= N);
         if BIT_WIDTH == 0 {
             return 0;
         }
@@ -382,7 +392,9 @@ impl<const N: usize> __BindgenBitfieldUnit<[u8; N]> {
                 }
             }
             val >>= bit_shift;
-            val &= (1usize << BIT_WIDTH) - 1;
+            if (BIT_WIDTH as u32) < usize::BITS {
+                val &= (1usize << BIT_WIDTH) - 1;
+            }
             if cfg!(target_endian = "big") {
                 val = val.reverse_bits() >> (usize::BITS as usize - BIT_WIDTH as usize);
             }
@@ -423,7 +435,7 @@ impl<const N: usize> __BindgenBitfieldUnit<[u8; N]> {
     ) {
         debug_assert!(BIT_WIDTH <= 64);
         debug_assert!(BIT_OFFSET / 8 < N);
-        debug_assert!((BIT_OFFSET + (BIT_WIDTH as usize)) / 8 <= N);
+        debug_assert!((BIT_OFFSET + (BIT_WIDTH as usize) + 7) / 8 <= N);
         if BIT_WIDTH == 0 {
             return;
         }
@@ -433,12 +445,18 @@ impl<const N: usize> __BindgenBitfieldUnit<[u8; N]> {
         let storage_ptr = this.cast::<[u8; N]>().cast::<u8>();
         if BIT_WIDTH as usize + bit_shift <= usize::BITS as usize {
             let mut val = val as usize;
-            val &= (1usize << BIT_WIDTH) - 1;
+            if (BIT_WIDTH as u32) < usize::BITS {
+                val &= (1usize << BIT_WIDTH) - 1;
+            }
             if cfg!(target_endian = "big") {
                 val = val.reverse_bits() >> (usize::BITS as usize - BIT_WIDTH as usize);
             }
             val <<= bit_shift;
-            let field_mask = ((1usize << BIT_WIDTH) - 1) << bit_shift;
+            let field_mask = if BIT_WIDTH as usize + bit_shift >= usize::BITS as usize {
+                !0usize << bit_shift
+            } else {
+                ((1usize << BIT_WIDTH) - 1) << bit_shift
+            };
             let mut i = 0;
             while i < bytes_needed {
                 let byte_val = (val >> (i * 8)) as u8;
@@ -510,12 +528,14 @@ const _: () = {
 };
 impl V56AMDY {
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn MADZ(&self) -> U16 {
         unsafe {
             ::std::mem::transmute(self._bitfield_1.get_const::<0usize, 10u8>() as u16)
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn set_MADZ(&mut self, val: U16) {
         unsafe {
             let val: u16 = ::std::mem::transmute(val);
@@ -523,6 +543,7 @@ impl V56AMDY {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn MADZ_raw(this: *const Self) -> U16 {
         unsafe {
             ::std::mem::transmute(
@@ -536,6 +557,7 @@ impl V56AMDY {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn set_MADZ_raw(this: *mut Self, val: U16) {
         unsafe {
             let val: u16 = ::std::mem::transmute(val);
@@ -548,12 +570,14 @@ impl V56AMDY {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn MAI0(&self) -> U16 {
         unsafe {
             ::std::mem::transmute(self._bitfield_1.get_const::<10usize, 2u8>() as u16)
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn set_MAI0(&mut self, val: U16) {
         unsafe {
             let val: u16 = ::std::mem::transmute(val);
@@ -561,6 +585,7 @@ impl V56AMDY {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn MAI0_raw(this: *const Self) -> U16 {
         unsafe {
             ::std::mem::transmute(
@@ -574,6 +599,7 @@ impl V56AMDY {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn set_MAI0_raw(this: *mut Self, val: U16) {
         unsafe {
             let val: u16 = ::std::mem::transmute(val);
@@ -586,12 +612,14 @@ impl V56AMDY {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn MAI1(&self) -> U16 {
         unsafe {
             ::std::mem::transmute(self._bitfield_1.get_const::<12usize, 2u8>() as u16)
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn set_MAI1(&mut self, val: U16) {
         unsafe {
             let val: u16 = ::std::mem::transmute(val);
@@ -599,6 +627,7 @@ impl V56AMDY {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn MAI1_raw(this: *const Self) -> U16 {
         unsafe {
             ::std::mem::transmute(
@@ -612,6 +641,7 @@ impl V56AMDY {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn set_MAI1_raw(this: *mut Self, val: U16) {
         unsafe {
             let val: u16 = ::std::mem::transmute(val);
@@ -624,12 +654,14 @@ impl V56AMDY {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn MAI2(&self) -> U16 {
         unsafe {
             ::std::mem::transmute(self._bitfield_1.get_const::<14usize, 2u8>() as u16)
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn set_MAI2(&mut self, val: U16) {
         unsafe {
             let val: u16 = ::std::mem::transmute(val);
@@ -637,6 +669,7 @@ impl V56AMDY {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn MAI2_raw(this: *const Self) -> U16 {
         unsafe {
             ::std::mem::transmute(
@@ -650,6 +683,7 @@ impl V56AMDY {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn set_MAI2_raw(this: *mut Self, val: U16) {
         unsafe {
             let val: u16 = ::std::mem::transmute(val);
@@ -662,6 +696,7 @@ impl V56AMDY {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn new_bitfield_1(
         MADZ: U16,
         MAI0: U16,
@@ -704,12 +739,14 @@ impl V56AMDY {
         __bindgen_bitfield_unit
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn MATH(&self) -> U16 {
         unsafe {
             ::std::mem::transmute(self._bitfield_2.get_const::<0usize, 10u8>() as u16)
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn set_MATH(&mut self, val: U16) {
         unsafe {
             let val: u16 = ::std::mem::transmute(val);
@@ -717,6 +754,7 @@ impl V56AMDY {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn MATH_raw(this: *const Self) -> U16 {
         unsafe {
             ::std::mem::transmute(
@@ -730,6 +768,7 @@ impl V56AMDY {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn set_MATH_raw(this: *mut Self, val: U16) {
         unsafe {
             let val: u16 = ::std::mem::transmute(val);
@@ -742,12 +781,14 @@ impl V56AMDY {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn MATE(&self) -> U16 {
         unsafe {
             ::std::mem::transmute(self._bitfield_2.get_const::<10usize, 4u8>() as u16)
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn set_MATE(&mut self, val: U16) {
         unsafe {
             let val: u16 = ::std::mem::transmute(val);
@@ -755,6 +796,7 @@ impl V56AMDY {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn MATE_raw(this: *const Self) -> U16 {
         unsafe {
             ::std::mem::transmute(
@@ -768,6 +810,7 @@ impl V56AMDY {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn set_MATE_raw(this: *mut Self, val: U16) {
         unsafe {
             let val: u16 = ::std::mem::transmute(val);
@@ -780,12 +823,14 @@ impl V56AMDY {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn MATW(&self) -> U16 {
         unsafe {
             ::std::mem::transmute(self._bitfield_2.get_const::<14usize, 2u8>() as u16)
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn set_MATW(&mut self, val: U16) {
         unsafe {
             let val: u16 = ::std::mem::transmute(val);
@@ -793,6 +838,7 @@ impl V56AMDY {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn MATW_raw(this: *const Self) -> U16 {
         unsafe {
             ::std::mem::transmute(
@@ -806,6 +852,7 @@ impl V56AMDY {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn set_MATW_raw(this: *mut Self, val: U16) {
         unsafe {
             let val: u16 = ::std::mem::transmute(val);
@@ -818,12 +865,14 @@ impl V56AMDY {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn MASW(&self) -> U8 {
         unsafe {
             ::std::mem::transmute(self._bitfield_2.get_const::<16usize, 4u8>() as u8)
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn set_MASW(&mut self, val: U8) {
         unsafe {
             let val: u8 = ::std::mem::transmute(val);
@@ -831,6 +880,7 @@ impl V56AMDY {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn MASW_raw(this: *const Self) -> U8 {
         unsafe {
             ::std::mem::transmute(
@@ -844,6 +894,7 @@ impl V56AMDY {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn set_MASW_raw(this: *mut Self, val: U8) {
         unsafe {
             let val: u8 = ::std::mem::transmute(val);
@@ -856,12 +907,14 @@ impl V56AMDY {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn MABW(&self) -> U8 {
         unsafe {
             ::std::mem::transmute(self._bitfield_2.get_const::<20usize, 3u8>() as u8)
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn set_MABW(&mut self, val: U8) {
         unsafe {
             let val: u8 = ::std::mem::transmute(val);
@@ -869,6 +922,7 @@ impl V56AMDY {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn MABW_raw(this: *const Self) -> U8 {
         unsafe {
             ::std::mem::transmute(
@@ -882,6 +936,7 @@ impl V56AMDY {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn set_MABW_raw(this: *mut Self, val: U8) {
         unsafe {
             let val: u8 = ::std::mem::transmute(val);
@@ -894,12 +949,14 @@ impl V56AMDY {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn MAXN(&self) -> U8 {
         unsafe {
             ::std::mem::transmute(self._bitfield_2.get_const::<23usize, 1u8>() as u8)
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn set_MAXN(&mut self, val: U8) {
         unsafe {
             let val: u8 = ::std::mem::transmute(val);
@@ -907,6 +964,7 @@ impl V56AMDY {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn MAXN_raw(this: *const Self) -> U8 {
         unsafe {
             ::std::mem::transmute(
@@ -920,6 +978,7 @@ impl V56AMDY {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn set_MAXN_raw(this: *mut Self, val: U8) {
         unsafe {
             let val: u8 = ::std::mem::transmute(val);
@@ -932,6 +991,7 @@ impl V56AMDY {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn new_bitfield_2(
         MATH: U16,
         MATE: U16,

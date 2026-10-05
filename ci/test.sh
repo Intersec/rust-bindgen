@@ -11,7 +11,7 @@ set -o pipefail
 set_llvm_env() {
   export LLVM_CONFIG_PATH=${LLVM_PATH}/bin/llvm-config
   echo "LLVM_CONFIG_PATH=$LLVM_CONFIG_PATH"
-  
+
   export LIBCLANG_PATH=${LLVM_PATH}/lib/
   echo "LIBCLANG_PATH=$LIBCLANG_PATH"
 
@@ -20,9 +20,12 @@ set_llvm_env() {
 }
 
 assert_no_diff() {
-  git add -u
-  git diff @
-  git diff-index --quiet HEAD
+  (
+    unset DYLD_LIBRARY_PATH
+    git add -u
+    git diff @
+    git diff-index --quiet HEAD
+  )
 }
 
 get_cargo_args() {
@@ -96,7 +99,7 @@ if [ "$BINDGEN_RUST_FOR_LINUX_TEST" == "1" ]; then
   # and each update should only contain this change.
   #
   # Both commit hashes and tags are supported.
-  LINUX_VERSION=v6.18-rc3
+  LINUX_VERSION=v7.1-rc1
 
   # Download Linux at a specific commit
   mkdir -p linux

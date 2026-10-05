@@ -313,6 +313,14 @@ fn get_extra_clang_args(
 impl Builder {
     /// Generate the Rust bindings using the options built up thus far.
     pub fn generate(mut self) -> Result<Bindings, BindgenError> {
+        // Ensure at least one input source (file or content) was provided.
+        // This does not enforce non-empty content, as header_contents always adds an entry.
+        if self.options.input_headers.is_empty() &&
+            self.options.input_header_contents.is_empty()
+        {
+            return Err(BindgenError::NoHeadersProvided);
+        }
+
         // Keep rust_features synced with rust_target
         self.options.rust_features = match self.options.rust_edition {
             Some(edition) => {
@@ -658,6 +666,8 @@ pub enum BindgenError {
     FolderAsHeader(PathBuf),
     /// Permissions to read the header is insufficient.
     InsufficientPermissions(PathBuf),
+    /// No input headers were provided.
+    NoHeadersProvided,
     /// The header does not exist.
     NotExist(PathBuf),
     /// Clang diagnosed an error.
@@ -676,6 +686,9 @@ impl std::fmt::Display for BindgenError {
             }
             BindgenError::InsufficientPermissions(h) => {
                 write!(f, "insufficient permissions to read '{}'", h.display())
+            }
+            BindgenError::NoHeadersProvided => {
+                write!(f, "no input headers were provided")
             }
             BindgenError::NotExist(h) => {
                 write!(f, "header '{}' does not exist.", h.display())
@@ -818,10 +831,10 @@ impl Bindings {
         // opening libclang.so, it has to be the same architecture and thus the
         // check is fine.
         if !explicit_target && !is_host_build {
-            options.clang_args.insert(
-                0,
-                format!("--target={effective_target}").into_boxed_str(),
-            );
+            let target_arg =
+                format!("--target={effective_target}").into_boxed_str();
+            options.clang_args.insert(0, target_arg.clone());
+            options.fallback_clang_args.insert(0, target_arg);
         }
 
         fn detect_include_paths(options: &mut BindgenOptions) {
@@ -890,7 +903,10 @@ impl Bindings {
                 for path in search_paths {
                     if let Ok(path) = path.into_os_string().into_string() {
                         options.clang_args.push("-isystem".into());
-                        options.clang_args.push(path.into_boxed_str());
+                        options.clang_args.push(path.clone().into_boxed_str());
+
+                        options.fallback_clang_args.push("-isystem".into());
+                        options.fallback_clang_args.push(path.into_boxed_str());
                     }
                 }
             }

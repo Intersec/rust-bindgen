@@ -73,7 +73,7 @@ where
         debug_assert!(bit_width <= 64);
         debug_assert!(bit_offset / 8 < self.storage.as_ref().len());
         debug_assert!(
-            (bit_offset + (bit_width as usize)) / 8 <= self.storage.as_ref().len(),
+            (bit_offset + (bit_width as usize) + 7) / 8 <= self.storage.as_ref().len(),
         );
         if bit_width == 0 {
             return 0;
@@ -106,7 +106,8 @@ where
         debug_assert!(bit_width <= 64);
         debug_assert!(bit_offset / 8 < core::mem::size_of::<Storage>());
         debug_assert!(
-            (bit_offset + (bit_width as usize)) / 8 <= core::mem::size_of::<Storage>(),
+            (bit_offset + (bit_width as usize) + 7) / 8
+                <= core::mem::size_of::<Storage>(),
         );
         if bit_width == 0 {
             return 0;
@@ -141,7 +142,7 @@ where
         debug_assert!(bit_width <= 64);
         debug_assert!(bit_offset / 8 < self.storage.as_ref().len());
         debug_assert!(
-            (bit_offset + (bit_width as usize)) / 8 <= self.storage.as_ref().len(),
+            (bit_offset + (bit_width as usize) + 7) / 8 <= self.storage.as_ref().len(),
         );
         if bit_width == 0 {
             return;
@@ -181,7 +182,8 @@ where
         debug_assert!(bit_width <= 64);
         debug_assert!(bit_offset / 8 < core::mem::size_of::<Storage>());
         debug_assert!(
-            (bit_offset + (bit_width as usize)) / 8 <= core::mem::size_of::<Storage>(),
+            (bit_offset + (bit_width as usize) + 7) / 8
+                <= core::mem::size_of::<Storage>(),
         );
         if bit_width == 0 {
             return;
@@ -226,7 +228,7 @@ impl<const N: usize> __BindgenBitfieldUnit<[u8; N]> {
     pub const fn get_const<const BIT_OFFSET: usize, const BIT_WIDTH: u8>(&self) -> u64 {
         debug_assert!(BIT_WIDTH <= 64);
         debug_assert!(BIT_OFFSET / 8 < N);
-        debug_assert!((BIT_OFFSET + (BIT_WIDTH as usize)) / 8 <= N);
+        debug_assert!((BIT_OFFSET + (BIT_WIDTH as usize) + 7) / 8 <= N);
         if BIT_WIDTH == 0 {
             return 0;
         }
@@ -251,7 +253,9 @@ impl<const N: usize> __BindgenBitfieldUnit<[u8; N]> {
                 }
             }
             val >>= bit_shift;
-            val &= (1usize << BIT_WIDTH) - 1;
+            if (BIT_WIDTH as u32) < usize::BITS {
+                val &= (1usize << BIT_WIDTH) - 1;
+            }
             if cfg!(target_endian = "big") {
                 val = val.reverse_bits() >> (usize::BITS as usize - BIT_WIDTH as usize);
             }
@@ -289,7 +293,7 @@ impl<const N: usize> __BindgenBitfieldUnit<[u8; N]> {
     pub fn set_const<const BIT_OFFSET: usize, const BIT_WIDTH: u8>(&mut self, val: u64) {
         debug_assert!(BIT_WIDTH <= 64);
         debug_assert!(BIT_OFFSET / 8 < N);
-        debug_assert!((BIT_OFFSET + (BIT_WIDTH as usize)) / 8 <= N);
+        debug_assert!((BIT_OFFSET + (BIT_WIDTH as usize) + 7) / 8 <= N);
         if BIT_WIDTH == 0 {
             return;
         }
@@ -298,12 +302,18 @@ impl<const N: usize> __BindgenBitfieldUnit<[u8; N]> {
         let bytes_needed = (BIT_WIDTH as usize + bit_shift + 7) / 8;
         if BIT_WIDTH as usize + bit_shift <= usize::BITS as usize {
             let mut val = val as usize;
-            val &= (1usize << BIT_WIDTH) - 1;
+            if (BIT_WIDTH as u32) < usize::BITS {
+                val &= (1usize << BIT_WIDTH) - 1;
+            }
             if cfg!(target_endian = "big") {
                 val = val.reverse_bits() >> (usize::BITS as usize - BIT_WIDTH as usize);
             }
             val <<= bit_shift;
-            let field_mask = ((1usize << BIT_WIDTH) - 1) << bit_shift;
+            let field_mask = if BIT_WIDTH as usize + bit_shift >= usize::BITS as usize {
+                !0usize << bit_shift
+            } else {
+                ((1usize << BIT_WIDTH) - 1) << bit_shift
+            };
             let mut i = 0;
             while i < bytes_needed {
                 let byte_val = (val >> (i * 8)) as u8;
@@ -356,7 +366,7 @@ impl<const N: usize> __BindgenBitfieldUnit<[u8; N]> {
     ) -> u64 {
         debug_assert!(BIT_WIDTH <= 64);
         debug_assert!(BIT_OFFSET / 8 < N);
-        debug_assert!((BIT_OFFSET + (BIT_WIDTH as usize)) / 8 <= N);
+        debug_assert!((BIT_OFFSET + (BIT_WIDTH as usize) + 7) / 8 <= N);
         if BIT_WIDTH == 0 {
             return 0;
         }
@@ -382,7 +392,9 @@ impl<const N: usize> __BindgenBitfieldUnit<[u8; N]> {
                 }
             }
             val >>= bit_shift;
-            val &= (1usize << BIT_WIDTH) - 1;
+            if (BIT_WIDTH as u32) < usize::BITS {
+                val &= (1usize << BIT_WIDTH) - 1;
+            }
             if cfg!(target_endian = "big") {
                 val = val.reverse_bits() >> (usize::BITS as usize - BIT_WIDTH as usize);
             }
@@ -423,7 +435,7 @@ impl<const N: usize> __BindgenBitfieldUnit<[u8; N]> {
     ) {
         debug_assert!(BIT_WIDTH <= 64);
         debug_assert!(BIT_OFFSET / 8 < N);
-        debug_assert!((BIT_OFFSET + (BIT_WIDTH as usize)) / 8 <= N);
+        debug_assert!((BIT_OFFSET + (BIT_WIDTH as usize) + 7) / 8 <= N);
         if BIT_WIDTH == 0 {
             return;
         }
@@ -433,12 +445,18 @@ impl<const N: usize> __BindgenBitfieldUnit<[u8; N]> {
         let storage_ptr = this.cast::<[u8; N]>().cast::<u8>();
         if BIT_WIDTH as usize + bit_shift <= usize::BITS as usize {
             let mut val = val as usize;
-            val &= (1usize << BIT_WIDTH) - 1;
+            if (BIT_WIDTH as u32) < usize::BITS {
+                val &= (1usize << BIT_WIDTH) - 1;
+            }
             if cfg!(target_endian = "big") {
                 val = val.reverse_bits() >> (usize::BITS as usize - BIT_WIDTH as usize);
             }
             val <<= bit_shift;
-            let field_mask = ((1usize << BIT_WIDTH) - 1) << bit_shift;
+            let field_mask = if BIT_WIDTH as usize + bit_shift >= usize::BITS as usize {
+                !0usize << bit_shift
+            } else {
+                ((1usize << BIT_WIDTH) - 1) << bit_shift
+            };
             let mut i = 0;
             while i < bytes_needed {
                 let byte_val = (val >> (i * 8)) as u8;
@@ -618,12 +636,14 @@ const _: () = {
 };
 impl rte_mbuf__bindgen_ty_2__bindgen_ty_1 {
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn l2_type(&self) -> u32 {
         unsafe {
             ::std::mem::transmute(self._bitfield_1.get_const::<0usize, 4u8>() as u32)
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn set_l2_type(&mut self, val: u32) {
         unsafe {
             let val: u32 = ::std::mem::transmute(val);
@@ -631,6 +651,7 @@ impl rte_mbuf__bindgen_ty_2__bindgen_ty_1 {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn l2_type_raw(this: *const Self) -> u32 {
         unsafe {
             ::std::mem::transmute(
@@ -644,6 +665,7 @@ impl rte_mbuf__bindgen_ty_2__bindgen_ty_1 {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn set_l2_type_raw(this: *mut Self, val: u32) {
         unsafe {
             let val: u32 = ::std::mem::transmute(val);
@@ -656,12 +678,14 @@ impl rte_mbuf__bindgen_ty_2__bindgen_ty_1 {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn l3_type(&self) -> u32 {
         unsafe {
             ::std::mem::transmute(self._bitfield_1.get_const::<4usize, 4u8>() as u32)
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn set_l3_type(&mut self, val: u32) {
         unsafe {
             let val: u32 = ::std::mem::transmute(val);
@@ -669,6 +693,7 @@ impl rte_mbuf__bindgen_ty_2__bindgen_ty_1 {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn l3_type_raw(this: *const Self) -> u32 {
         unsafe {
             ::std::mem::transmute(
@@ -682,6 +707,7 @@ impl rte_mbuf__bindgen_ty_2__bindgen_ty_1 {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn set_l3_type_raw(this: *mut Self, val: u32) {
         unsafe {
             let val: u32 = ::std::mem::transmute(val);
@@ -694,12 +720,14 @@ impl rte_mbuf__bindgen_ty_2__bindgen_ty_1 {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn l4_type(&self) -> u32 {
         unsafe {
             ::std::mem::transmute(self._bitfield_1.get_const::<8usize, 4u8>() as u32)
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn set_l4_type(&mut self, val: u32) {
         unsafe {
             let val: u32 = ::std::mem::transmute(val);
@@ -707,6 +735,7 @@ impl rte_mbuf__bindgen_ty_2__bindgen_ty_1 {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn l4_type_raw(this: *const Self) -> u32 {
         unsafe {
             ::std::mem::transmute(
@@ -720,6 +749,7 @@ impl rte_mbuf__bindgen_ty_2__bindgen_ty_1 {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn set_l4_type_raw(this: *mut Self, val: u32) {
         unsafe {
             let val: u32 = ::std::mem::transmute(val);
@@ -732,12 +762,14 @@ impl rte_mbuf__bindgen_ty_2__bindgen_ty_1 {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn tun_type(&self) -> u32 {
         unsafe {
             ::std::mem::transmute(self._bitfield_1.get_const::<12usize, 4u8>() as u32)
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn set_tun_type(&mut self, val: u32) {
         unsafe {
             let val: u32 = ::std::mem::transmute(val);
@@ -745,6 +777,7 @@ impl rte_mbuf__bindgen_ty_2__bindgen_ty_1 {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn tun_type_raw(this: *const Self) -> u32 {
         unsafe {
             ::std::mem::transmute(
@@ -758,6 +791,7 @@ impl rte_mbuf__bindgen_ty_2__bindgen_ty_1 {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn set_tun_type_raw(this: *mut Self, val: u32) {
         unsafe {
             let val: u32 = ::std::mem::transmute(val);
@@ -770,12 +804,14 @@ impl rte_mbuf__bindgen_ty_2__bindgen_ty_1 {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn inner_l2_type(&self) -> u32 {
         unsafe {
             ::std::mem::transmute(self._bitfield_1.get_const::<16usize, 4u8>() as u32)
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn set_inner_l2_type(&mut self, val: u32) {
         unsafe {
             let val: u32 = ::std::mem::transmute(val);
@@ -783,6 +819,7 @@ impl rte_mbuf__bindgen_ty_2__bindgen_ty_1 {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn inner_l2_type_raw(this: *const Self) -> u32 {
         unsafe {
             ::std::mem::transmute(
@@ -796,6 +833,7 @@ impl rte_mbuf__bindgen_ty_2__bindgen_ty_1 {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn set_inner_l2_type_raw(this: *mut Self, val: u32) {
         unsafe {
             let val: u32 = ::std::mem::transmute(val);
@@ -808,12 +846,14 @@ impl rte_mbuf__bindgen_ty_2__bindgen_ty_1 {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn inner_l3_type(&self) -> u32 {
         unsafe {
             ::std::mem::transmute(self._bitfield_1.get_const::<20usize, 4u8>() as u32)
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn set_inner_l3_type(&mut self, val: u32) {
         unsafe {
             let val: u32 = ::std::mem::transmute(val);
@@ -821,6 +861,7 @@ impl rte_mbuf__bindgen_ty_2__bindgen_ty_1 {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn inner_l3_type_raw(this: *const Self) -> u32 {
         unsafe {
             ::std::mem::transmute(
@@ -834,6 +875,7 @@ impl rte_mbuf__bindgen_ty_2__bindgen_ty_1 {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn set_inner_l3_type_raw(this: *mut Self, val: u32) {
         unsafe {
             let val: u32 = ::std::mem::transmute(val);
@@ -846,12 +888,14 @@ impl rte_mbuf__bindgen_ty_2__bindgen_ty_1 {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn inner_l4_type(&self) -> u32 {
         unsafe {
             ::std::mem::transmute(self._bitfield_1.get_const::<24usize, 4u8>() as u32)
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn set_inner_l4_type(&mut self, val: u32) {
         unsafe {
             let val: u32 = ::std::mem::transmute(val);
@@ -859,6 +903,7 @@ impl rte_mbuf__bindgen_ty_2__bindgen_ty_1 {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn inner_l4_type_raw(this: *const Self) -> u32 {
         unsafe {
             ::std::mem::transmute(
@@ -872,6 +917,7 @@ impl rte_mbuf__bindgen_ty_2__bindgen_ty_1 {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn set_inner_l4_type_raw(this: *mut Self, val: u32) {
         unsafe {
             let val: u32 = ::std::mem::transmute(val);
@@ -884,6 +930,7 @@ impl rte_mbuf__bindgen_ty_2__bindgen_ty_1 {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn new_bitfield_1(
         l2_type: u32,
         l3_type: u32,
@@ -1180,12 +1227,14 @@ const _: () = {
 };
 impl rte_mbuf__bindgen_ty_5__bindgen_ty_1 {
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn l2_len(&self) -> u64 {
         unsafe {
             ::std::mem::transmute(self._bitfield_1.get_const::<0usize, 7u8>() as u64)
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn set_l2_len(&mut self, val: u64) {
         unsafe {
             let val: u64 = ::std::mem::transmute(val);
@@ -1193,6 +1242,7 @@ impl rte_mbuf__bindgen_ty_5__bindgen_ty_1 {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn l2_len_raw(this: *const Self) -> u64 {
         unsafe {
             ::std::mem::transmute(
@@ -1206,6 +1256,7 @@ impl rte_mbuf__bindgen_ty_5__bindgen_ty_1 {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn set_l2_len_raw(this: *mut Self, val: u64) {
         unsafe {
             let val: u64 = ::std::mem::transmute(val);
@@ -1218,12 +1269,14 @@ impl rte_mbuf__bindgen_ty_5__bindgen_ty_1 {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn l3_len(&self) -> u64 {
         unsafe {
             ::std::mem::transmute(self._bitfield_1.get_const::<7usize, 9u8>() as u64)
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn set_l3_len(&mut self, val: u64) {
         unsafe {
             let val: u64 = ::std::mem::transmute(val);
@@ -1231,6 +1284,7 @@ impl rte_mbuf__bindgen_ty_5__bindgen_ty_1 {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn l3_len_raw(this: *const Self) -> u64 {
         unsafe {
             ::std::mem::transmute(
@@ -1244,6 +1298,7 @@ impl rte_mbuf__bindgen_ty_5__bindgen_ty_1 {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn set_l3_len_raw(this: *mut Self, val: u64) {
         unsafe {
             let val: u64 = ::std::mem::transmute(val);
@@ -1256,12 +1311,14 @@ impl rte_mbuf__bindgen_ty_5__bindgen_ty_1 {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn l4_len(&self) -> u64 {
         unsafe {
             ::std::mem::transmute(self._bitfield_1.get_const::<16usize, 8u8>() as u64)
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn set_l4_len(&mut self, val: u64) {
         unsafe {
             let val: u64 = ::std::mem::transmute(val);
@@ -1269,6 +1326,7 @@ impl rte_mbuf__bindgen_ty_5__bindgen_ty_1 {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn l4_len_raw(this: *const Self) -> u64 {
         unsafe {
             ::std::mem::transmute(
@@ -1282,6 +1340,7 @@ impl rte_mbuf__bindgen_ty_5__bindgen_ty_1 {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn set_l4_len_raw(this: *mut Self, val: u64) {
         unsafe {
             let val: u64 = ::std::mem::transmute(val);
@@ -1294,12 +1353,14 @@ impl rte_mbuf__bindgen_ty_5__bindgen_ty_1 {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn tso_segsz(&self) -> u64 {
         unsafe {
             ::std::mem::transmute(self._bitfield_1.get_const::<24usize, 16u8>() as u64)
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn set_tso_segsz(&mut self, val: u64) {
         unsafe {
             let val: u64 = ::std::mem::transmute(val);
@@ -1307,6 +1368,7 @@ impl rte_mbuf__bindgen_ty_5__bindgen_ty_1 {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn tso_segsz_raw(this: *const Self) -> u64 {
         unsafe {
             ::std::mem::transmute(
@@ -1320,6 +1382,7 @@ impl rte_mbuf__bindgen_ty_5__bindgen_ty_1 {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn set_tso_segsz_raw(this: *mut Self, val: u64) {
         unsafe {
             let val: u64 = ::std::mem::transmute(val);
@@ -1332,12 +1395,14 @@ impl rte_mbuf__bindgen_ty_5__bindgen_ty_1 {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn outer_l3_len(&self) -> u64 {
         unsafe {
             ::std::mem::transmute(self._bitfield_1.get_const::<40usize, 9u8>() as u64)
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn set_outer_l3_len(&mut self, val: u64) {
         unsafe {
             let val: u64 = ::std::mem::transmute(val);
@@ -1345,6 +1410,7 @@ impl rte_mbuf__bindgen_ty_5__bindgen_ty_1 {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn outer_l3_len_raw(this: *const Self) -> u64 {
         unsafe {
             ::std::mem::transmute(
@@ -1358,6 +1424,7 @@ impl rte_mbuf__bindgen_ty_5__bindgen_ty_1 {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn set_outer_l3_len_raw(this: *mut Self, val: u64) {
         unsafe {
             let val: u64 = ::std::mem::transmute(val);
@@ -1370,12 +1437,14 @@ impl rte_mbuf__bindgen_ty_5__bindgen_ty_1 {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn outer_l2_len(&self) -> u64 {
         unsafe {
             ::std::mem::transmute(self._bitfield_1.get_const::<49usize, 7u8>() as u64)
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn set_outer_l2_len(&mut self, val: u64) {
         unsafe {
             let val: u64 = ::std::mem::transmute(val);
@@ -1383,6 +1452,7 @@ impl rte_mbuf__bindgen_ty_5__bindgen_ty_1 {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn outer_l2_len_raw(this: *const Self) -> u64 {
         unsafe {
             ::std::mem::transmute(
@@ -1396,6 +1466,7 @@ impl rte_mbuf__bindgen_ty_5__bindgen_ty_1 {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub unsafe fn set_outer_l2_len_raw(this: *mut Self, val: u64) {
         unsafe {
             let val: u64 = ::std::mem::transmute(val);
@@ -1408,6 +1479,7 @@ impl rte_mbuf__bindgen_ty_5__bindgen_ty_1 {
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn new_bitfield_1(
         l2_len: u64,
         l3_len: u64,

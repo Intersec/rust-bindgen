@@ -141,19 +141,23 @@ fn compare_generated_header(
     {
         let mut expectation = expectation.clone();
 
-        if cfg!(feature = "__testing_only_libclang_16") {
+        if cfg!(feature = "__testing_only_libclang_22") {
+            expectation.push("libclang-22");
+        } else if cfg!(feature = "__testing_only_libclang_20") {
+            expectation.push("libclang-20");
+        } else if cfg!(feature = "__testing_only_libclang_16") {
             expectation.push("libclang-16");
-        } else if cfg!(feature = "__testing_only_libclang_9") {
-            expectation.push("libclang-9");
         } else {
             match clang_version().parsed {
-                None => expectation.push("libclang-16"),
+                None => expectation.push("libclang-22"),
                 Some(version) => {
                     let (maj, min) = version;
-                    let version_str = if maj >= 16 {
+                    let version_str = if maj >= 22 {
+                        "22".to_owned()
+                    } else if maj >= 20 {
+                        "20".to_owned()
+                    } else if maj >= 16 {
                         "16".to_owned()
-                    } else if maj >= 9 {
-                        "9".to_owned()
                     } else {
                         format!("{maj}.{min}")
                     };
@@ -564,6 +568,24 @@ fn test_mixed_header_and_header_contents() {
 }
 
 #[test]
+fn test_no_header_provided() {
+    use bindgen::BindgenError;
+
+    let result = builder().generate();
+    assert_eq!(result.err(), Some(BindgenError::NoHeadersProvided));
+
+    let empty_header =
+        tempfile::Builder::new().suffix(".h").tempfile().unwrap();
+    let result = builder()
+        .header(empty_header.path().to_str().unwrap())
+        .generate();
+    assert!(result.is_ok(), "Expected success, got: {:?}", result.err());
+
+    let result = builder().header_contents("test.h", "").generate();
+    assert!(result.is_ok(), "Expected success, got: {:?}", result.err());
+}
+
+#[test]
 fn test_macro_fallback_non_system_dir() {
     let actual = builder()
         .header(concat!(
@@ -582,29 +604,14 @@ fn test_macro_fallback_non_system_dir() {
 
     let actual = format_code(actual).unwrap();
 
-    let (expected_filename, expected) = if let Some((9, _)) =
-        clang_version().parsed
-    {
-        let expected_filename = concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/tests/expectations/tests/libclang-9/macro_fallback_non_system_dir.rs",
-        );
-        let expected = include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/tests/expectations/tests/libclang-9/macro_fallback_non_system_dir.rs",
-        ));
-        (expected_filename, expected)
-    } else {
-        let expected_filename = concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/tests/expectations/tests/test_macro_fallback_non_system_dir.rs",
-        );
-        let expected = include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/tests/expectations/tests/test_macro_fallback_non_system_dir.rs",
-        ));
-        (expected_filename, expected)
-    };
+    let expected_filename = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/expectations/tests/test_macro_fallback_non_system_dir.rs",
+    );
+    let expected = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/expectations/tests/test_macro_fallback_non_system_dir.rs",
+    ));
     let expected = format_code(expected).unwrap();
     if expected != actual {
         error_diff_mismatch(
@@ -615,6 +622,52 @@ fn test_macro_fallback_non_system_dir() {
         )
         .unwrap();
     }
+}
+
+#[test]
+fn test_macro_fallback_cross_target() {
+    if let Some((9, _)) = clang_version().parsed {
+        return;
+    }
+
+    // Setting TARGET in a parallel test is not robust, so run the actual
+    // assertion in a child process with a non-host target.
+    if env::var("__BINDGEN_CROSS_TARGET_INNER").is_ok() {
+        let tmpdir = tempfile::tempdir().unwrap();
+        let header = tmpdir.path().join("test.h");
+        fs::write(&header, "#define PTR_BYTES __SIZEOF_POINTER__\n").unwrap();
+
+        let actual = builder()
+            .disable_header_comment()
+            .header(header.to_str().unwrap())
+            .clang_macro_fallback()
+            .clang_macro_fallback_build_dir(tmpdir.path())
+            .generate()
+            .unwrap()
+            .to_string();
+
+        assert!(
+            actual.contains("pub const PTR_BYTES: u32 = 4;"),
+            "Expected 4-byte pointers for armv7 target, got:\n{actual}"
+        );
+        return;
+    }
+
+    let output = std::process::Command::new(env::current_exe().unwrap())
+        .arg("test_macro_fallback_cross_target")
+        .arg("--exact")
+        .arg("--test-threads=1")
+        .env("TARGET", "armv7-unknown-linux-gnueabihf")
+        .env("__BINDGEN_CROSS_TARGET_INNER", "1")
+        .output()
+        .unwrap();
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        output.status.success(),
+        "Cross-target fallback test failed.\nstdout:\n{stdout}\nstderr:\n{stderr}"
+    );
 }
 
 #[test]

@@ -262,7 +262,7 @@ impl From<DerivableTraits> for Vec<&'static str> {
         ]
         .iter()
         .filter_map(|&(flag, derive)| {
-            Some(derive).filter(|_| derivable_traits.contains(flag))
+            derivable_traits.contains(flag).then_some(derive)
         })
         .collect()
     }
@@ -811,11 +811,19 @@ impl CodeGenerator for Var {
             };
 
             if let Some(mut val) = const_expr {
-                let var_ty_item = ctx.resolve_item(var_ty);
-                if matches!(
-                    var_ty_item.alias_style(ctx),
-                    AliasVariation::NewType | AliasVariation::NewTypeDeref
-                ) {
+                let var_ty_item =
+                    var_ty.into_resolver().through_type_refs().resolve(ctx);
+
+                let is_alias = var_ty_item
+                    .as_type()
+                    .is_some_and(|ty| matches!(ty.kind(), TypeKind::Alias(..)));
+
+                if is_alias &&
+                    matches!(
+                        var_ty_item.alias_style(ctx),
+                        AliasVariation::NewType | AliasVariation::NewTypeDeref
+                    )
+                {
                     val = quote! { #ty(#val) };
                 }
                 result.push(quote! {
@@ -845,6 +853,20 @@ impl CodeGenerator for Var {
                 }
             });
 
+            let mut block_attributes = quote! {};
+            for attr in &ctx.options().extern_block_attrs {
+                let parsed_attr = proc_macro2::TokenStream::from_str(attr).unwrap_or_else(
+                    |err| {
+                        panic!(
+                            "Error parsing extern static block attribute `{attr}`: {err}"
+                        )
+                    },
+                );
+                block_attributes.extend(quote! {
+                    #parsed_attr
+                });
+            }
+
             let maybe_mut = if self.is_const() {
                 quote! {}
             } else {
@@ -858,6 +880,7 @@ impl CodeGenerator for Var {
                 .then(|| quote!(unsafe));
 
             let tokens = quote!(
+                #block_attributes
                 #safety extern "C" {
                     #(#attrs)*
                     pub static #maybe_mut #canonical_ident: #ty;
@@ -1014,6 +1037,9 @@ impl CodeGenerator for Type {
                         .with_implicit_template_params(ctx, inner_item)
                 };
 
+                let inner_canon_type =
+                    inner_item.expect_type().canonical_type(ctx);
+
                 {
                     // FIXME(emilio): This is a workaround to avoid generating
                     // incorrect type aliases because of types that we haven't
@@ -1025,8 +1051,6 @@ impl CodeGenerator for Type {
                     // with invalid template parameters, and at least this way
                     // they can be replaced, instead of generating plain invalid
                     // code.
-                    let inner_canon_type =
-                        inner_item.expect_type().canonical_type(ctx);
                     if inner_canon_type.is_invalid_type_param() {
                         warn!(
                             "Item contained invalid named type, skipping: \
@@ -1054,6 +1078,7 @@ impl CodeGenerator for Type {
                 };
 
                 let alias_style = item.alias_style(ctx);
+                let mut needs_debug_impl = false;
 
                 // We prefer using `pub use` over `pub type` because of:
                 // https://github.com/rust-lang/rust/issues/26264
@@ -1085,6 +1110,13 @@ impl CodeGenerator for Type {
                         let packed = false; // Types can't be packed in Rust.
                         let derivable_traits =
                             derives_of_item(item, ctx, packed);
+                        if !derivable_traits.contains(DerivableTraits::DEBUG) {
+                            needs_debug_impl = ctx.options().derive_debug &&
+                                ctx.options().impl_debug &&
+                                !ctx.no_debug_by_name(item) &&
+                                !item.annotations().disallow_debug() &&
+                                !inner_canon_type.is_void();
+                        }
                         let mut derives: Vec<_> = derivable_traits.into();
                         // The custom derives callback may return a list of derive attributes;
                         // add them to the end of the list.
@@ -1097,7 +1129,9 @@ impl CodeGenerator for Type {
                             });
                         // In most cases this will be a no-op, since custom_derives will be empty.
                         append_custom_derives(&mut derives, &custom_derives);
-                        attributes.push(attributes::derives(&derives));
+                        if !derives.is_empty() {
+                            attributes.push(attributes::derives(&derives));
+                        }
 
                         let custom_attributes =
                             ctx.options().all_callbacks(|cb| {
@@ -1211,6 +1245,17 @@ impl CodeGenerator for Type {
                             #[inline]
                             fn deref_mut(&mut self) -> &mut Self::Target {
                                 &mut self.0
+                            }
+                        }
+                    });
+                }
+
+                if needs_debug_impl {
+                    let prefix = ctx.trait_prefix();
+                    tokens.append_all(quote! {
+                        impl ::#prefix::fmt::Debug for #rust_name {
+                            fn fmt(&self, f: &mut ::#prefix::fmt::Formatter<'_>) -> ::#prefix::fmt::Result {
+                                f.debug_tuple(stringify!(#rust_name)).field(&self.0).finish()
                             }
                         }
                     });
@@ -1620,11 +1665,8 @@ impl FieldCodegen<'_> for FieldData {
         };
 
         let mut field = quote! {};
-        if ctx.options().generate_comments {
-            if let Some(raw_comment) = self.comment() {
-                let comment = ctx.options().process_comment(raw_comment);
-                field = attributes::doc(&comment);
-            }
+        if let Some(comment) = self.doc_comment(ctx) {
+            field = attributes::doc(&comment);
         }
 
         let field_name = self
@@ -1954,6 +1996,12 @@ impl FieldCodegen<'_> for BitfieldUnit {
 
         let access_spec = access_specifier(unit_visibility);
 
+        if let Some(padding_field) =
+            struct_layout.saw_bitfield_unit(layout, self.offset())
+        {
+            fields.extend(Some(padding_field));
+        }
+
         let field = quote! {
             #access_spec #unit_field_ident : #field_ty ,
         };
@@ -1962,6 +2010,7 @@ impl FieldCodegen<'_> for BitfieldUnit {
         if generate_ctor {
             methods.extend(Some(quote! {
                 #[inline]
+                #[allow(unnecessary_transmutes)]
                 #access_spec fn #ctor_name ( #( #ctor_params ),* ) -> #unit_field_ty {
                     let mut __bindgen_bitfield_unit: #unit_field_ty = Default::default();
                     #ctor_impl
@@ -1969,8 +2018,6 @@ impl FieldCodegen<'_> for BitfieldUnit {
                 }
             }));
         }
-
-        struct_layout.saw_bitfield_unit(layout);
     }
 }
 
@@ -2095,6 +2142,7 @@ impl<'a> FieldCodegen<'a> for Bitfield {
         if parent.is_union() && !struct_layout.is_rust_union() {
             methods.extend(Some(quote! {
                 #[inline]
+                #[allow(unnecessary_transmutes)]
                 #access_spec fn #getter_name(&self) -> #bitfield_ty {
                     unsafe {
                         ::#prefix::mem::transmute(
@@ -2105,6 +2153,7 @@ impl<'a> FieldCodegen<'a> for Bitfield {
                 }
 
                 #[inline]
+                #[allow(unnecessary_transmutes)]
                 #access_spec fn #setter_name(&mut self, val: #bitfield_ty) {
                     unsafe {
                         let val: #bitfield_int_ty = ::#prefix::mem::transmute(val);
@@ -2119,6 +2168,7 @@ impl<'a> FieldCodegen<'a> for Bitfield {
 
             methods.extend(Some(quote! {
                 #[inline]
+                #[allow(unnecessary_transmutes)]
                 #access_spec unsafe fn #raw_getter_name(this: *const Self) -> #bitfield_ty {
                     unsafe {
                         ::#prefix::mem::transmute(<#unit_field_ty>::raw_get(
@@ -2130,6 +2180,7 @@ impl<'a> FieldCodegen<'a> for Bitfield {
                 }
 
                 #[inline]
+                #[allow(unnecessary_transmutes)]
                 #access_spec unsafe fn #raw_setter_name(this: *mut Self, val: #bitfield_ty) {
                     unsafe {
                         let val: #bitfield_int_ty = ::#prefix::mem::transmute(val);
@@ -2145,6 +2196,7 @@ impl<'a> FieldCodegen<'a> for Bitfield {
         } else {
             methods.extend(Some(quote! {
                 #[inline]
+                #[allow(unnecessary_transmutes)]
                 #access_spec fn #getter_name(&self) -> #bitfield_ty {
                     unsafe {
                         ::#prefix::mem::transmute(
@@ -2155,6 +2207,7 @@ impl<'a> FieldCodegen<'a> for Bitfield {
                 }
 
                 #[inline]
+                #[allow(unnecessary_transmutes)]
                 #access_spec fn #setter_name(&mut self, val: #bitfield_ty) {
                     unsafe {
                         let val: #bitfield_int_ty = ::#prefix::mem::transmute(val);
@@ -2167,6 +2220,7 @@ impl<'a> FieldCodegen<'a> for Bitfield {
 
             methods.extend(Some(quote! {
                 #[inline]
+                #[allow(unnecessary_transmutes)]
                 #access_spec unsafe fn #raw_getter_name(this: *const Self) -> #bitfield_ty {
                     unsafe {
                         ::#prefix::mem::transmute(<#unit_field_ty>::raw_get_const::<#offset, #width>(
@@ -2176,6 +2230,7 @@ impl<'a> FieldCodegen<'a> for Bitfield {
                 }
 
                 #[inline]
+                #[allow(unnecessary_transmutes)]
                 #access_spec unsafe fn #raw_setter_name(this: *mut Self, val: #bitfield_ty) {
                     unsafe {
                         let val: #bitfield_int_ty = ::#prefix::mem::transmute(val);
@@ -2517,7 +2572,16 @@ impl CodeGenerator for CompInfo {
             // the beginning of the struct. This avoids hitting
             // https://github.com/rust-lang/rust-bindgen/issues/2179
             // Do it for bitfields only for now for backwards compat.
-            if self.has_bitfields() && explicit <= 8 {
+            //
+            // (Note that, if the target's primitive type alignment is *not* sufficiently
+            // aligned, as in the case of u64 on a 32-bit system, we should not insert the dummy
+            // field, hence checking that `explicit` is less-than-or-equal-to the target primitive
+            // type's alignemnt.)
+            let target_primitive_align = Layout::for_size(ctx, explicit).align;
+            if self.has_bitfields() &&
+                explicit <= 8 &&
+                target_primitive_align >= explicit
+            {
                 let align_ty = match explicit {
                     8 => quote! { u64 },
                     4 => quote! { u32 },
@@ -3926,14 +3990,11 @@ impl CodeGenerator for Enum {
                 continue;
             }
 
-            let mut variant_doc = quote! {};
-            if ctx.options().generate_comments {
-                if let Some(raw_comment) = variant.comment() {
-                    let processed_comment =
-                        ctx.options().process_comment(raw_comment);
-                    variant_doc = attributes::doc(&processed_comment);
-                }
-            }
+            let variant_doc = if let Some(comment) = variant.doc_comment(ctx) {
+                attributes::doc(&comment)
+            } else {
+                quote! {}
+            };
 
             match seen_values.entry(variant.val()) {
                 Entry::Occupied(ref entry) => {
@@ -4799,7 +4860,7 @@ impl CodeGenerator for Function {
         }
 
         let mut block_attributes = quote! {};
-        for attr in &ctx.options().extern_fn_block_attrs {
+        for attr in &ctx.options().extern_block_attrs {
             let parsed_attr = proc_macro2::TokenStream::from_str(attr).unwrap_or_else(
                 |err| {
                     panic!(
